@@ -1,0 +1,156 @@
+version: '3.8'
+
+x-common-variables: &shared-variables
+  NODE_ENV: development
+  PORT: 3000
+  AUTH_URL: http://auth:3000
+  CODE_EXECUTOR_URL: http://code-executor:3000
+  CODING_URL: http://coding:3000
+  HISTORY_URL: http://history:3000
+  PAIRING_URL: http://pairing:3000
+  VIDEO_URL: http://video:3000
+  ROOM_URL: http://room:3000
+
+networks:
+  frontend:
+  backend:
+
+services:
+  frontend:
+    build:
+      dockerfile: frontend/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./frontend:/home/node/app/frontend
+    ports:
+      - 3000:3000
+    restart: on-failure
+    networks:
+      - frontend
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      SKIP_PREFLIGHT_CHECK: 'true'
+      REACT_APP_BACKEND_API: http://localhost:4000
+      REACT_APP_FIREBASE_API_KEY: AIzaSyASaqw4fLp2DYyfmVRfQojpXcvFzlcVKs8
+      REACT_APP_FIREBASE_AUTH_DOMAIN: code2gather-df5c6.firebaseapp.com
+      REACT_APP_FIREBASE_PROJECT_ID: code2gather-df5c6
+      REACT_APP_FIREBASE_STORAGE_BUCKET: code2gather-df5c6.appspot.com
+      REACT_APP_FIREBASE_MESSAGING_SENDER_ID: 333844889339
+      REACT_APP_FIREBASE_APP_ID: 1:333844889339:web:e8aee02dd38ceceefd3a5e
+      REACT_APP_FIREBASE_MEASUTREMENT_ID: G-MFN27CTW6J
+
+  gateway:
+    build:
+      dockerfile: gateway/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./gateway:/home/node/app/gateway
+    ports:
+      - 4000:3000
+    restart: on-failure
+    networks:
+      - frontend
+      - backend
+    environment:
+      <<: *shared-variables
+
+  auth:
+    build:
+      dockerfile: auth/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./auth:/home/node/app/auth
+    expose:
+      - 3000
+    restart: on-failure
+    networks:
+      - backend
+    environment:
+      <<: *shared-variables
+      FIREBASE_PROJECT_ID: code2gather-df5c6
+      FIREBASE_CLIENT_EMAIL: firebase-adminsdk-s2fzb@code2gather-df5c6.iam.gserviceaccount.com
+      FIREBASE_PRIVATE_KEY: -----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC009PNhDrShX6+\n3PFl2vcoeWVcdc+IpiUPXXED7W/XkJTr0aioWaDLHbp9k7aRVHPLh5K61jOOLjVO\ny5/rQWgQxFIGKHqBmh9v67APJXJHXUE08rmDCKM3tPZVc9yLmjTuAEPEpj0R/WR5\nWAM/1++1V9ENsUzMbLCRwBX9ZAFP2NiFDagib9oi7/1hBLdCh4i3d4EdrPWmE1Cd\ni5UVWhk9f7tU9lnElCqlG8kAU8m3yhC4nup87bdvRRiW3E/isYZl3zJGqMkQViG5\n1pQ72doC9JTXwT6gCwxZj0Mn0uzPsQs1vD0TIxHDS1NUwimYIhtJMxNPkep3yeKJ\nrkEqM179AgMBAAECggEAHVKURVQB7eLJO3i8icBzf9QKWcSePhHNxKtps4dXMY+N\nIUhtnw8ZrJZKMtQ3MLiPJnFPm+M27QFqkjfMMOv5ohkTwVKNuw0bt/HHf6KaNh8A\nf0OKTZ34Sa+bRR7KpAtXi0NDuf8dvBho/ecFxTPmTR52afqsR3dV5+yheZDenZcj\nKFwZSU6Wgojf5ng5JD0tEesBVt5BsJtNZBvXiNxqMER6lLsHRj+u3Y+aPYvHO/JD\nApGp0zkvUt2SzRBx087Wt+4Seo4879gbSDCYxt8it5cJpPfEb6Ri6oHt6co+KPat\nHU3+p6FZ2tbVUzqpRDtkP3mabHX+we7JUlmReMkAiQKBgQDgeXCSVJlC0ipgyy3o\n4Chx/ypREzP8HZW4qyeo6P8a8MnT61ji6iPRSZyf7rzm9pG82+ufs6NR5YLK6bLj\nR8yZa+UdEn0TYp6Ah0Jz/OdLWdLVRL5gjcprOM2i1XZyWfQ6jR3rauBjJag8acR/\nbhcyXXEfJq07qFqOvxpA0r1jtwKBgQDOOSSynt45PuWTOPc0/dVE5VyjcgxWNMg4\nhWYZYQwFXYZIs8k1n0DudA5ZZTWUiXVgtJ3Ln8TubPmvAxSrmWqzzZ5LZ5M5O9US\nOzSQ/pF1Az76ftKn7xAd+5+FvALWRgWDZfIqReXKuxrvfbVOVQiJnubcOt6ZY5eW\n9Kn5ggna6wKBgQDGj0VfewvSyrsHwdILY3UDWXWiH71lLvpITsWXKPq3ZvTwywZm\nOjySnW25HuHj34mMqHAlZS57e+wU92Hwn4tAzursq3UN17di88J5fOVPhtXzJorM\nN8As1iM3/WB3yFA8FqW3n2N68E1/mwNgwQ4t0/ADYR/tXH82M57SZld2wwKBgQCH\nSbGrhNGgmISfirWSjBuHcTjO+RjizQm1Gr6aU7JBKtPXiiqsBOfiBz0KpHz8Dxlz\n8cm7NftJtzAuAkVjNehsQK5iJXbOC1SC+1hG7tqZ+yEr0Ft+VDUsllBWubrau2EO\njKjL1sMjto+7Iar50oshTZ+CRxSVaGKgY63Gw+qXNQKBgDGwzpqIlQwRsucEGJQU\nddzrJdo8bZWcoMIrnR+L8TXYxk1Wa7VhhPb5PK8jTKwswci8/ko9Ek7VhnkoaVeR\nudaw8Ri6RocBpBhOAL+Ec6Yyv76xzPz4wcxUm7096O0i0SgSgVq/YMTSZJwHKs84\nH8IZCfvvddpl4zpAIrfkxPRK\n-----END PRIVATE KEY-----\n
+      JWT_SECRET: code2gather
+
+  coding:
+    build:
+      dockerfile: coding/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./coding:/home/node/app/coding
+    expose:
+      - 3000
+    restart: on-failure
+    networks:
+      - backend
+    environment:
+      <<: *shared-variables
+
+  history:
+    build:
+      dockerfile: history/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./history:/home/node/app/history
+    expose:
+      - 3000
+    restart: on-failure
+    networks:
+      - backend
+    depends_on:
+      - db
+    environment:
+      <<: *shared-variables
+      DATABASE_URL: postgresql://postgres:postgres@db/postgres?connect_timeout=300
+
+  pairing:
+    build:
+      dockerfile: pairing/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./pairing:/home/node/app/pairing
+    expose:
+      - 3000
+    restart: on-failure
+    networks:
+      - backend
+    environment:
+      <<: *shared-variables
+
+  video:
+    build:
+      dockerfile: video/Dockerfile.dev
+      context: .
+    volumes:
+      - ~/.cache/yarn:/home/node/.cache/yarn
+      - ./video:/home/node/app/video
+    expose:
+      - 3000
+    restart: on-failure
+    networks:
+      - backend
+    environment:
+      <<: *shared-variables
+      APP_ID: 6e61da63d86d4d96951c2d27054273b1
+      APP_CERTIFICATE: 1e6ec129f2c84c92975babe6c050f3bd
+
+  db:
+    image: postgres:12
+    restart: always
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data/
+    logging:
+      driver: none
+    networks:
+      - backend
+    ports:
+      - 15432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
