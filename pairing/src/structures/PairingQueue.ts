@@ -14,12 +14,17 @@ class PairingQueue {
     this.alreadyEnqueued = new Set();
   }
 
+  public isInQueue(uid: string): boolean {
+    return this.alreadyEnqueued.has(uid);
+  }
+
   // Fails silently if user is already enqueued
   // In any case, once matched, the match will be broadcasted to all
   // sockets.
   public enqueue(user: User): [User, User] | undefined {
-    if (this.alreadyEnqueued.has(user.uid)) {
-      return;
+    if (this.isInQueue(user.uid)) {
+      console.log('User already in queue, no change');
+      throw new Error();
     }
     const queue = this.queues.get(user.difficulty)!;
     const index = queue.findIndex(
