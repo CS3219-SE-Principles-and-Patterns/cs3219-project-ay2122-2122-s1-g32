@@ -11,16 +11,11 @@ import (
 )
 
 func incomingRequestHandler(c *Client, request []byte) {
-	var response proto.Message
-
 	requestMessage := &models.ClientRequest{}
 	if err := util.UnmarshalBytes(request, requestMessage); err != nil {
+		log.Println("Receive Non-ClientRequest Message")
 		log.Println(err)
-		response = &models.ErrorResponse{
-			ErrorCode: int32(models.ErrorCode_MESSAGE_CODING_ERROR),
-			Message:   "Unable to decode message",
-		}
-		sendResponseToRequestedClient(response, c)
+		sendErrorResponse(c)
 		return
 	}
 
@@ -37,11 +32,7 @@ func incomingRequestHandler(c *Client, request []byte) {
 		leaveRoomRequestHandler(c, r.LeaveRoomRequest)
 	default:
 		log.Println("Receive message of unknown type")
-		response = &models.ErrorResponse{
-			ErrorCode: int32(models.ErrorCode_MESSAGE_CODING_ERROR),
-			Message:   "Unable to decode message",
-		}
-		sendResponseToRequestedClient(response, c)
+		sendErrorResponse(c)
 	}
 }
 
@@ -97,15 +88,21 @@ func leaveRoomRequestHandler(c *Client, request *models.LeaveRoomRequest) {
 	err := handler.Process()
 	if err != nil {
 		log.Println(err)
+	} else if handler.IsRequestAuthorized() {
+		c.leaveRoom()
 	}
 
 	// Send response to requesting user only
 	sendResponseToRequestedClient(handler.GetResponse(), c)
+}
 
-	if err != nil && handler.IsRequestAuthorized() {
-		c.leaveRoom()
-		c.unregisterFromRoom()
+func sendErrorResponse(c *Client) {
+	errorResp := &models.ErrorResponse{
+		ErrorCode: int32(models.ErrorCode_MESSAGE_CODING_ERROR),
+		Message:   "Unable to decode message",
 	}
+	responseWrapper := &models.RoomServiceToClientMessage_ErrorResponse{ErrorResponse: errorResp}
+	sendResponseToRequestedClient(&models.RoomServiceToClientMessage{Response: responseWrapper}, c)
 }
 
 func sendResponseToRequestedClient(response proto.Message, c *Client) {

@@ -1,36 +1,41 @@
 package db
 
 import (
+	"time"
+
 	"code2gather.com/room/src/models"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-type RoomDaoImpl struct {
+type RoomRepositoryImpl struct {
 	collection *mgo.Collection
 }
 
-func NewRoomDaoImpl() *RoomDaoImpl {
-	return &RoomDaoImpl{DB.C(models.Room{}.TableName())}
+func NewRoomRepositoryImpl() *RoomRepositoryImpl {
+	return &RoomRepositoryImpl{DB.C(models.Room{}.TableName())}
 }
 
-func (daoi RoomDaoImpl) CreateRoom(room *models.Room) error {
+func (daoi RoomRepositoryImpl) CreateRoom(room *models.Room) error {
+	room.CreatedAt = time.Now()
+	room.UpdatedAt = time.Now()
 	err := daoi.collection.Insert(room)
 	return err
 }
 
-func (daoi RoomDaoImpl) GetRoomById(id string) (models.Room, error) {
+func (daoi RoomRepositoryImpl) GetRoomById(id string) (models.Room, error) {
 	room := models.Room{}
 	err := daoi.collection.Find(bson.M{"id": id}).One(&room)
 	return room, err
 }
 
-func (daoi RoomDaoImpl) UpdateRoom(room *models.Room) error {
+func (daoi RoomRepositoryImpl) UpdateRoom(room *models.Room) error {
+	room.UpdatedAt = time.Now()
 	err := daoi.collection.Update(bson.M{"id": room.Id}, room)
 	return err
 }
 
-func (daoi RoomDaoImpl) FindRooms(query bson.M) ([]models.Room, error) {
+func (daoi RoomRepositoryImpl) FindRooms(query bson.M) ([]models.Room, error) {
 	var rooms []models.Room
 	err := daoi.collection.Find(query).All(&rooms)
 	return rooms, err

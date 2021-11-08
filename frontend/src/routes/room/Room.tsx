@@ -1,6 +1,7 @@
+/* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { FC, ReactElement, useCallback, useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
 import CodeEditor from 'components/codeEditor';
 import LanguageDropdown from 'components/languageDropdown';
@@ -23,14 +24,19 @@ import {
   leaveRoomService,
   submitRating,
 } from 'lib/roomSocketService';
-import { RatingSubmissionState } from 'reducers/roomDux';
+import {
+  incrementCheckRoomIdCounter,
+  RatingSubmissionState,
+  setShouldClearCode,
+} from 'reducers/roomDux';
 import { RootState } from 'reducers/rootReducer';
 import { Language } from 'types/crud/language';
 import { useLocalStorage, useWindowDimensions } from 'utils/hookUtils';
-import { ROOM_ID_KEY } from 'utils/roomIdUtils';
+import roomIdUtils from 'utils/roomIdUtils';
 
 import DisconnectedModal from './modals/DisconnectedModal';
 import EndTurnModal from './modals/EndTurnModal';
+import HelpModal from './modals/HelpModal';
 import LeaveRoomModal from './modals/LeaveRoomModal';
 import LeftModal from './modals/LeftModal';
 import RatingModal from './modals/RatingModal';
@@ -57,57 +63,88 @@ const Room: FC = () => {
     partnerHasLeft,
     ratingSubmissionStatus,
     shouldKickUser,
+    checkRoomIdCounter,
+    shouldClearCode,
   } = useSelector((state: RootState) => state.room);
   const [isPanelShown, setIsPanelShown] = useState(isInterviewer);
   const [isEndingTurn, setIsEndingTurn] = useState(false);
   const [isLeavingRoom, setIsLeavingRoom] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [showHelpModal, setShowHelpModal] = useState(true);
+  const [notes, setNotes] = useLocalStorage('notes', '');
   const { height, width } = useWindowDimensions();
-  const [roomId, setRoomId] = useLocalStorage<string | null>(ROOM_ID_KEY, null);
+  const roomId = roomIdUtils.getRoomId();
+  const dispatch = useDispatch();
 
   const isInterviewComplete = turnsCompleted === 2;
   const code = doc.text.toString();
 
   const exitRoom = useCallback((): void => {
+    console.log('Exiting room via exitRoom');
+    setNotes('');
     leaveCodingService(codingSocket);
     leaveRoomService(roomSocket, roomId!);
-  }, [codingSocket, roomSocket, roomId]);
+  }, [codingSocket, setNotes, roomId, roomSocket]);
 
   useEffect(() => {
     // This is the mechanism that we will use to leave the room
     // ALL leave rooms will ultimately lead here.
     if (roomId == null) {
+      console.log('Room ID is now null.');
       window.location.href = HOME;
       return (): void => undefined;
     }
+    console.log('Joining sockets');
     joinCodingService(codingSocket, roomId);
-    joinRoomService(roomSocket, roomId);
-  }, [codingSocket, roomId, roomSocket]);
-
-  useEffect(() => {
-    if (shouldShowOutputPanel) {
-      setIsPanelShown(true);
+    if (roomSocket.readyState === WebSocket.OPEN) {
+      joinRoomService(roomSocket, roomId);
     }
-  }, [shouldShowOutputPanel]);
+    console.log('Joined sockets');
+  }, [
+    checkRoomIdCounter,
+    codingSocket,
+    roomId,
+    roomSocket,
+    roomSocket.readyState,
+  ]);
 
   useEffect(() => {
+    setShowHelpModal(true);
     if (isInterviewer) {
+      console.log('Is interviewer');
       setIsPanelShown(true);
     }
   }, [isInterviewer]);
 
   useEffect(() => {
+    if (shouldShowOutputPanel) {
+      console.log('Showing output panel');
+      setIsPanelShown(true);
+    }
+  }, [shouldShowOutputPanel]);
+
+  useEffect(() => {
     if (ratingSubmissionStatus === RatingSubmissionState.SUBMITTED) {
+      console.log('Rating submitted');
       exitRoom();
     }
-  }, [ratingSubmissionStatus, exitRoom]);
+  }, [exitRoom, ratingSubmissionStatus]);
 
   useEffect(() => {
     if (shouldKickUser) {
-      // We don't leave room because this user does not belong to the room in the first place
-      setRoomId(null);
+      console.log('Kicking user');
+      // We don't leave room because this user did not join the room in the first place
+      setNotes('');
+      roomIdUtils.removeRoomId();
+      dispatch(incrementCheckRoomIdCounter());
     }
-  }, [shouldKickUser, setRoomId]);
+  }, [dispatch, setNotes, shouldKickUser]);
+
+  useEffect(() => {
+    if (shouldClearCode) {
+      updateCode(codingSocket, doc, '');
+      dispatch(setShouldClearCode(false));
+    }
+  }, [codingSocket, dispatch, doc, shouldClearCode]);
 
   const onCodeChange = (code: string): void => {
     updateCode(codingSocket, doc, code);
@@ -191,7 +228,15 @@ const Room: FC = () => {
         />
       );
     }
-    return <div>Going back to interviewing...</div>;
+    if (showHelpModal) {
+      return (
+        <HelpModal
+          isInterviewer={isInterviewer}
+          onClose={(): void => setShowHelpModal(false)}
+        />
+      );
+    }
+    return <div>Back to interviewing...</div>;
   };
 
   const isModalVisible =
@@ -199,7 +244,8 @@ const Room: FC = () => {
     isLeavingRoom ||
     partnerHasDisconnected ||
     partnerHasLeft ||
-    isInterviewComplete;
+    isInterviewComplete ||
+    showHelpModal;
 
   return (
     <div className="room">
@@ -214,7 +260,10 @@ const Room: FC = () => {
                   changeLanguage(codingSocket, language);
                 }}
               />
-              <button className="border-button room--top-left__help-button">
+              <button
+                className="border-button room--top-left__help-button"
+                onClick={(): void => setShowHelpModal(true)}
+              >
                 <Typography size="regular">
                   Help <i className="far fa-question-circle" />
                 </Typography>

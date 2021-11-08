@@ -82,7 +82,7 @@ message CreateMeetingRequest {
   int32 duration = 3;
   string question_id = 4;
   string question_title = 5;
-  QuestionDifficulty difficulty = 6;
+  QuestionDifficulty question_difficulty = 6;
   Language language = 7;
   string code_written = 8;
   bool is_solved = 9;
@@ -94,7 +94,6 @@ message CreateRatingRequest {
   int32 rating = 1;
   string rating_user_id = 2;
   string rated_user_id = 3;
-  string room_id = 4;
 }
 
 // HTTP GET request (Room -> History)
@@ -123,11 +122,6 @@ enum ErrorCode {
   UNAUTHORIZED_USER = 2;
 }
 
-message ErrorResponse {
-  int32 error_code = 1;
-  string message = 2;
-}
-
 message ClientRequest {
   oneof request {
     JoinRoomRequest join_room_request = 1;
@@ -146,7 +140,13 @@ message RoomServiceToClientMessage {
     SubmitRatingResponse submit_rating_response = 5;
     LeaveRoomResponse leave_room_response = 6;
     LeaveRoomBroadcast leave_room_broadcast = 7;
+    ErrorResponse error_response = 8;
   }
+}
+
+message ErrorResponse {
+  int32 error_code = 1;
+  string message = 2;
 }
 
 message JoinRoomRequest {

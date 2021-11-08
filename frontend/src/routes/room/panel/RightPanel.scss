@@ -23,6 +23,19 @@
     width: 27vw;
   }
 
+  &__tabs-container {
+    display: flex;
+    position: relative;
+
+    > i {
+      color: $output-notification-color;
+      font-size: 0.4rem;
+      position: absolute;
+      right: -0.8rem;
+      top: 35%;
+    }
+  }
+
   &__tabs {
     display: flex;
     justify-content: space-between;
@@ -82,6 +95,7 @@
 
     &__difficulty {
       margin-bottom: 0.25rem;
+      margin-top: 0.5rem;
     }
   }
 }

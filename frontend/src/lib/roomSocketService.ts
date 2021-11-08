@@ -1,12 +1,15 @@
 /* eslint-disable no-console */
 import store from 'app/store';
+import { clearCodeExecutionOutput } from 'reducers/codingDux';
 import {
+  incrementCheckRoomIdCounter,
   partnerHasJoinedRoom,
   RatingSubmissionState,
   setPartnerHasDisconnected,
   setPartnerHasLeft,
   setRatingSubmissionStatus,
   setRoomInfo,
+  setShouldClearCode,
   setShouldKickUser,
   setTurnsCompleted,
   switchRoles,
@@ -25,6 +28,7 @@ const languageMap = {
 };
 
 export const joinRoomService = (socket: WebSocket, roomId: string): void => {
+  console.log('Joining room:', roomId);
   const joinRoomRequest = new code2gather.JoinRoomRequest({
     room_id: roomId,
   });
@@ -44,6 +48,7 @@ export const completeQuestion = (
   codeWritten: string,
   language: Language,
 ): void => {
+  console.log('Completing question...');
   const completeQuestionRequest = new code2gather.CompleteQuestionRequest({
     room_id: roomId,
     is_solved: isSolved,
@@ -64,6 +69,7 @@ export const submitRating = (
   roomId: string,
   rating: number,
 ): void => {
+  console.log('Submitting rating:', rating);
   store.dispatch(setRatingSubmissionStatus(RatingSubmissionState.SUBMITTING));
   const submitRatingRequest = new code2gather.SubmitRatingRequest({
     room_id: roomId,
@@ -78,6 +84,7 @@ export const submitRating = (
 };
 
 export const leaveRoomService = (socket: WebSocket, roomId: string): void => {
+  console.log('Leaving room', roomId);
   const leaveRoomRequest = new code2gather.LeaveRoomRequest({
     room_id: roomId,
   });
@@ -103,13 +110,16 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
     console.log(message);
 
     if (message.join_room_response) {
+      console.log('Join room response');
       if (
         message.join_room_response.error_code != null &&
         message.join_room_response.error_code !== 0
       ) {
+        console.log('Join room response error');
         store.dispatch(setShouldKickUser(true));
         return;
       }
+      console.log('Join room response success');
       RoomApi.getQuestion(message.join_room_response.question_id).then(
         (question) => {
           store.dispatch(
@@ -132,11 +142,15 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
         },
       );
     } else if (message.join_room_broadcast) {
+      console.log('Join room broadcast');
       store.dispatch(partnerHasJoinedRoom());
     } else if (message.disconnect_broadcast) {
+      console.log('Disconnect broadcast');
       store.dispatch(setPartnerHasDisconnected(true));
     } else if (message.complete_question_response) {
+      console.log('Complete question response');
       if (!message.complete_question_response.is_interview_completed) {
+        console.log('1 more turn left');
         RoomApi.getQuestion(
           message.complete_question_response.next_question_id,
         ).then((question) => {
@@ -146,19 +160,42 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
               difficulty: question.difficulty ?? Difficulty.EASY,
             }),
           );
+          store.dispatch(setShouldClearCode(true));
+          store.dispatch(clearCodeExecutionOutput());
         });
       } else {
+        console.log('No more turns left');
         store.dispatch(setTurnsCompleted(2));
       }
     } else if (message.submit_rating_response) {
-      // TODO: Handle error
+      console.log('Submit rating response');
+      if (
+        message.submit_rating_response.error_code != null &&
+        message.submit_rating_response.error_code !== 0
+      ) {
+        // TODO: Improve error handling
+        console.log('Submit rating response error');
+        return;
+      }
+      console.log('Submit rating response success');
       store.dispatch(
         setRatingSubmissionStatus(RatingSubmissionState.SUBMITTED),
       );
     } else if (message.leave_room_response) {
-      // TODO: Handle error
+      console.log('Leave room response');
+      if (
+        message.leave_room_response.error_code != null &&
+        message.leave_room_response.error_code !== 0
+      ) {
+        // TODO: Improve error handling
+        console.log('Leave room response error');
+        return;
+      }
+      console.log('Leave room response success');
       roomIdUtils.removeRoomId();
+      store.dispatch(incrementCheckRoomIdCounter());
     } else if (message.leave_room_broadcast) {
+      console.log('Leave room broadcast');
       store.dispatch(setPartnerHasLeft(true));
     }
   };
