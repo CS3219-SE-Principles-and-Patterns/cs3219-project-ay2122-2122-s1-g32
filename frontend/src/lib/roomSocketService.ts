@@ -1,8 +1,8 @@
+/* eslint-disable no-console */
 import store from 'app/store';
 import {
   partnerHasJoinedRoom,
   RatingSubmissionState,
-  resetState,
   setPartnerHasDisconnected,
   setPartnerHasLeft,
   setRatingSubmissionStatus,
@@ -11,6 +11,7 @@ import {
   setTurnsCompleted,
   switchRoles,
 } from 'reducers/roomDux';
+import { Difficulty } from 'types/crud/difficulty';
 import { Language } from 'types/crud/language';
 import { code2gather } from 'types/protobuf/code2gather';
 import roomIdUtils from 'utils/roomIdUtils';
@@ -90,13 +91,22 @@ export const leaveRoomService = (socket: WebSocket, roomId: string): void => {
 
 export const initializeSocketForRoom = (socket: WebSocket): void => {
   socket.onmessage = (event): void => {
-    // eslint-disable-next-line no-console
     console.log(event);
     const messageData = event.data;
-    const message =
-      code2gather.RoomServiceToClientMessage.deserialize(messageData);
+    console.log(messageData);
+    console.log(window.atob(messageData));
+    const message = code2gather.RoomServiceToClientMessage.deserialize(
+      new Uint8Array(
+        [...window.atob(messageData)].map((char) => char.charCodeAt(0)),
+      ),
+    );
+    console.log(message);
+
     if (message.join_room_response) {
-      if (message.join_room_response.error_code !== 0) {
+      if (
+        message.join_room_response.error_code != null &&
+        message.join_room_response.error_code !== 0
+      ) {
         store.dispatch(setShouldKickUser(true));
         return;
       }
@@ -106,13 +116,17 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
             setRoomInfo({
               // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
               roomId: roomIdUtils.getRoomId()!,
-              turnsCompleted: message.join_room_response.turns_completed,
-              isInterviewer: message.join_room_response.is_interviewer,
-              question: question,
-              partnerUid: message.join_room_response.paired_user.id,
+              turnsCompleted: message.join_room_response.turns_completed ?? 0,
+              isInterviewer: message.join_room_response.is_interviewer ?? false,
+              question: {
+                ...question,
+                difficulty: question.difficulty ?? Difficulty.EASY,
+              },
+              partnerUid: message.join_room_response.paired_user.id ?? '',
               partnerUsername:
-                message.join_room_response.paired_user.github_username,
-              partnerPhotoUrl: message.join_room_response.paired_user.photo_url,
+                message.join_room_response.paired_user.github_username ?? '',
+              partnerPhotoUrl:
+                message.join_room_response.paired_user.photo_url ?? '',
             }),
           );
         },
@@ -126,7 +140,12 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
         RoomApi.getQuestion(
           message.complete_question_response.next_question_id,
         ).then((question) => {
-          store.dispatch(switchRoles(question));
+          store.dispatch(
+            switchRoles({
+              ...question,
+              difficulty: question.difficulty ?? Difficulty.EASY,
+            }),
+          );
         });
       } else {
         store.dispatch(setTurnsCompleted(2));
@@ -138,7 +157,6 @@ export const initializeSocketForRoom = (socket: WebSocket): void => {
       );
     } else if (message.leave_room_response) {
       // TODO: Handle error
-      store.dispatch(resetState());
       roomIdUtils.removeRoomId();
     } else if (message.leave_room_broadcast) {
       store.dispatch(setPartnerHasLeft(true));

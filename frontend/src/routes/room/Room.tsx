@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { FC, ReactElement, useEffect, useState } from 'react';
+import { FC, ReactElement, useCallback, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 
 import CodeEditor from 'components/codeEditor';
@@ -26,8 +26,8 @@ import {
 import { RatingSubmissionState } from 'reducers/roomDux';
 import { RootState } from 'reducers/rootReducer';
 import { Language } from 'types/crud/language';
-import useWindowDimensions from 'utils/hookUtils';
-import roomIdUtils from 'utils/roomIdUtils';
+import { useLocalStorage, useWindowDimensions } from 'utils/hookUtils';
+import { ROOM_ID_KEY } from 'utils/roomIdUtils';
 
 import DisconnectedModal from './modals/DisconnectedModal';
 import EndTurnModal from './modals/EndTurnModal';
@@ -41,9 +41,13 @@ import './Room.scss';
 const Room: FC = () => {
   const { codingSocket } = useCodingSocket();
   const { roomSocket } = useRoomSocket();
-  const { doc, language, isExecutingCode, codeExecutionOutput } = useSelector(
-    (state: RootState) => state.coding,
-  );
+  const {
+    doc,
+    language,
+    isExecutingCode,
+    codeExecutionOutput,
+    shouldShowOutputPanel,
+  } = useSelector((state: RootState) => state.coding);
   const {
     isInterviewer,
     question,
@@ -59,41 +63,51 @@ const Room: FC = () => {
   const [isLeavingRoom, setIsLeavingRoom] = useState(false);
   const [notes, setNotes] = useState('');
   const { height, width } = useWindowDimensions();
-  const roomId = roomIdUtils.getRoomId();
+  const [roomId, setRoomId] = useLocalStorage<string | null>(ROOM_ID_KEY, null);
 
   const isInterviewComplete = turnsCompleted === 2;
   const code = doc.text.toString();
 
+  const exitRoom = useCallback((): void => {
+    leaveCodingService(codingSocket);
+    leaveRoomService(roomSocket, roomId!);
+  }, [codingSocket, roomSocket, roomId]);
+
   useEffect(() => {
+    // This is the mechanism that we will use to leave the room
+    // ALL leave rooms will ultimately lead here.
     if (roomId == null) {
       window.location.href = HOME;
       return (): void => undefined;
     }
     joinCodingService(codingSocket, roomId);
     joinRoomService(roomSocket, roomId);
-
-    // Clean up
-    return (): void => {
-      leaveCodingService(codingSocket);
-      leaveRoomService(roomSocket, roomId);
-    };
   }, [codingSocket, roomId, roomSocket]);
 
   useEffect(() => {
-    if (ratingSubmissionStatus === RatingSubmissionState.SUBMITTED) {
-      leaveCodingService(codingSocket);
-      leaveRoomService(roomSocket, roomId!);
-      window.location.href = HOME;
+    if (shouldShowOutputPanel) {
+      setIsPanelShown(true);
     }
-  }, [ratingSubmissionStatus, codingSocket, roomSocket, roomId]);
+  }, [shouldShowOutputPanel]);
+
+  useEffect(() => {
+    if (isInterviewer) {
+      setIsPanelShown(true);
+    }
+  }, [isInterviewer]);
+
+  useEffect(() => {
+    if (ratingSubmissionStatus === RatingSubmissionState.SUBMITTED) {
+      exitRoom();
+    }
+  }, [ratingSubmissionStatus, exitRoom]);
 
   useEffect(() => {
     if (shouldKickUser) {
-      window.location.href = HOME;
-      leaveCodingService(codingSocket);
-      leaveRoomService(roomSocket, roomId!);
+      // We don't leave room because this user does not belong to the room in the first place
+      setRoomId(null);
     }
-  }, [shouldKickUser, codingSocket, roomSocket, roomId]);
+  }, [shouldKickUser, setRoomId]);
 
   const onCodeChange = (code: string): void => {
     updateCode(codingSocket, doc, code);
@@ -124,12 +138,6 @@ const Room: FC = () => {
       return `${Math.round(0.67 * width) - 32}px`;
     }
     return `${Math.round(0.73 * width) - 32}px`;
-  };
-
-  const exitRoom = (): void => {
-    leaveCodingService(codingSocket);
-    leaveRoomService(roomSocket, roomId!);
-    window.location.href = HOME;
   };
 
   const onCompleteQuestion = (isSolved: boolean): void => {
